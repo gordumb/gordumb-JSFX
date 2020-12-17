@@ -1,0 +1,148 @@
+/*
+Gordon McCreary
+Created December 2020
+Last Modified December 2020
+*/
+
+/* Effect name. */
+desc:gordumb Scrambler
+
+/* Sliders. */
+slider1:0 <0, 256, 1>Grab Depth (Samples)
+slider2:1 <0, 127, 1>Grab Width (Samples)
+
+/* Input & output pins. */
+in_pin:Left Input
+in_pin:Right Input
+out_pin:Left Output
+out_pin:Right Output
+
+/* Additional options. */
+options:no_meter
+
+
+
+/* Initialize the effect */
+@init
+
+  // Constants.
+  function MAX_DEPTH() (256;);
+  function MAX_WIDTH() (128;);
+  
+  // Recording array.
+  function record(leftIn rightIn) (
+    recordIndex[] = leftIn;
+    (recordIndex + 1)[] = rightIn;
+    recordIndex += 2;
+    recordIndex >= (MAX_DEPTH() * 2) ? (
+      recordIndex = 0;
+      recordFull === 0 ?
+        recordFull = 1;
+    );
+  );
+  
+  // Retrieve recording.
+  function getLRec(depth) (
+    ((recordIndex + (depth * 2)) % (MAX_DEPTH() * 2))[];
+  );
+  function getRRec(depth) (
+    ((recordIndex + (depth * 2) + 1) % (MAX_DEPTH() * 2))[];
+  );
+  
+  // Output array.
+  function output(leftIn rightIn) (
+    outputWriteIndex[] = leftIn;
+    (outputWriteIndex + 1)[] = rightIn;
+    outputWriteIndex += 2;
+    outputWriteIndex >= ((MAX_DEPTH() * 2) + (MAX_WIDTH() * 2)) ? (
+      outputWriteIndex = MAX_DEPTH() * 2;
+    );
+  );
+  
+  function getLOut() (
+    outputReadIndex[];
+  );
+  function getROut() (
+    (outputReadIndex + 1)[];
+  );
+  
+  // Variables for recording input.
+  recordIndex = 0;
+  recordFull = 0;
+  
+  // Variables for storing output.
+  outputWriteIndex = MAX_DEPTH() * 2;
+  outputReadIndex = MAX_DEPTH() * 2;
+  remainOutput = 0;
+
+
+
+/* Slider callback function. */
+@slider
+
+  // Check slider ranges.
+  slider1 > MAX_DEPTH() ?
+    slider1 = MAX_DEPTH()
+  : slider1 < 0 ?
+    slider1 = 0;
+    
+  slider2 > MAX_WIDTH() ?
+      slider2 = MAX_WIDTH()
+  : slider2 < 0 ?
+      slider2 = 0;
+  
+
+
+/* Process every sample. */
+@sample
+
+  // Update grab depth and width.
+  grabDepth = slider1;
+  grabWidth = floor(slider2);
+
+  // Save current sample into local memory.
+  record(spl0, spl1);
+  
+  // If not enough recorded, reduce depth.
+  recordFull === 0 && recordIndex < grabDepth ?
+    grabDepth = recordIndex;
+    
+  // If not enough depth, reduce width.
+  grabDepth < grabWidth ? (
+    grabWidth = grabDepth;
+    recordFull === 1 ?
+      slider2 = grabWidth;
+  );
+  
+  // Write chunk to output.
+  remainOutput === 0 ? (
+    curDepth = floor(rand(grabDepth - grabWidth));
+    while (remainOutput < (grabWidth + 1)) (
+      output(getLRec(curDepth - remainOutput), getRRec(curDepth - remainOutput));
+      remainOutput += 1;
+    );
+  );
+  
+  //output(getLRec(0), getRRec(0));
+  
+  /*
+  remainOutput <= 0 ? (
+    curDepth = floor(rand(grabDepth - grabWidth));
+    while (remainOutput < (grabWidth + 1)) (
+      output(getLRec(curDepth - remainOutput), getRRec(curDepth - remainOutput));
+      remainOutput += 1;
+    );
+  ) : remainOutput -= 1;
+  */
+
+  
+  // Set output.
+  spl0 = getLOut();
+  spl1 = getROut();
+  remainOutput -= 1;
+  
+  // Update outputReadIndex.
+  outputReadIndex += 2;
+  outputReadIndex >= ((MAX_DEPTH() * 2) + (MAX_WIDTH() * 2)) ? (
+    outputReadIndex = MAX_DEPTH() * 2;
+  );
